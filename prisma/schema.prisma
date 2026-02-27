@@ -1,0 +1,306 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum Region {
+  SIERRA
+  COSTA
+  ORIENTE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum PayrollPeriodStatus {
+  DRAFT
+  PROCESSED
+  CLOSED
+}
+
+enum PayrollPeriodType {
+  MENSUAL
+  DECIMO_TERCERO
+  DECIMO_CUARTO_SIERRA
+  DECIMO_CUARTO_COSTA
+}
+
+enum BenefitType {
+  DECIMO_TERCERO
+  DECIMO_CUARTO
+  FONDO_RESERVA
+  OTHER
+}
+
+enum DeductionType {
+  IESS_PERSONAL
+  INCOME_TAX
+  OTHER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(USER)
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  closedPayrolls PayrollPeriod[]
+}
+
+model Company {
+  id               String          @id @default(cuid())
+  name             String
+  ruc              String          @unique
+  address          String?
+  phone            String?
+  logo             String?
+  baseSalary       Float           @default(460.00) // SBU 2024 for XIV calculation
+  users            User[]
+  employees        Employee[]
+  departments      Department[]
+  payrollPeriods   PayrollPeriod[]
+  earningTypes     AdditionalEarningType[]
+  deductionTypes   AdditionalDeductionType[]
+  taxBrackets      IncomeTaxBracket[]
+  taxReductionConfig TaxReductionConfig?
+  familyBurdenReductions FamilyBurdenReduction[]
+  payrollTypeConfigs PayrollTypeConfig[]
+  sendPayrollEmail  Boolean        @default(false)
+  emailFrom         String?
+  emailPassword     String? // Encrypted in production, plain for now as per previous discussions (TODO: Encrypt)
+  emailHost         String?
+  emailPort         Int?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model IncomeTaxBracket {
+  id          String   @id @default(cuid())
+  minLimit    Float
+  maxLimit    Float?   // Null means infinity
+  baseTax     Float    // Fixed amount to pay for reaching this bracket
+  percentage  Float    // Percentage to apply to the excess
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@unique([minLimit, companyId])
+}
+
+model TaxReductionConfig {
+  id          String   @id @default(cuid())
+  reductionPercentage Float @default(0.0) // Reducción general (%) - obsoleto si usamos la nueva tabla, pero lo mantenemos para compatibilidad
+  companyId   String   @unique
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FamilyBurdenReduction {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  year        Int
+  dependentCount Int    // Número de cargas familiares
+  maxReduction Float    // Rebaja máxima en valor absoluto
+  taxReductionPercentage Float // Porcentaje de reducción del impuesto (ej: 10%)
+
+  @@unique([companyId, year, dependentCount])
+}
+
+model PayrollTypeConfig {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  type        PayrollPeriodType
+  applicableEarnings     String[] // Array de AdditionalEarningType IDs
+  applicableDeductions   String[] // Array de AdditionalDeductionType IDs
+
+  @@unique([companyId, type])
+}
+
+model Employee {
+  id             String          @id @default(cuid())
+  firstName      String
+  lastName       String
+  email          String?         
+  identification String          @unique
+  roleId         String
+  role           Role            @relation(fields: [roleId], references: [id])
+  departmentId   String
+  department     Department      @relation(fields: [departmentId], references: [id])
+  companyId      String
+  company        Company         @relation(fields: [companyId], references: [id])
+  salary         Float
+  startDate      DateTime
+  status         EmployeeStatus @default(ACTIVE)
+  region         Region          @default(SIERRA)
+  accumulateDecimos     Boolean @default(false)
+  accumulateReserveFund Boolean @default(false)
+  isPartTime            Boolean @default(false)
+  familyBurden          Int     @default(0) // Número de cargas familiares
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  payrollRecords PayrollRecord[]
+
+  @@unique([email, companyId]) // Unique email per company
+}
+
+model Department {
+  id          String     @id @default(cuid())
+  name        String     
+  description String?
+  companyId   String
+  company     Company    @relation(fields: [companyId], references: [id])
+  employees   Employee[]
+  roles       Role[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([name, companyId])
+}
+
+model Role {
+  id           String     @id @default(cuid())
+  name         String
+  description  String?
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  employees    Employee[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([name, departmentId])
+}
+
+model PayrollPeriod {
+  id        String              @id @default(cuid())
+  month     Int
+  year      Int
+  type      PayrollPeriodType   @default(MENSUAL)
+  status    PayrollPeriodStatus @default(DRAFT)
+  startDate DateTime
+  endDate   DateTime
+  companyId String
+  company   Company             @relation(fields: [companyId], references: [id])
+  records   PayrollRecord[]
+  audits    PayrollAudit[]
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  closedAt  DateTime?
+  closedBy  User?              @relation(fields: [closedById], references: [id], onDelete: SetNull)
+  closedById String?
+
+  @@unique([month, year, type, companyId])
+}
+
+model PayrollAudit {
+  id          String   @id @default(cuid())
+  periodId    String
+  period      PayrollPeriod @relation(fields: [periodId], references: [id])
+  action      String   // "CALCULATED", "CLOSED", "RECALCULATED"
+  employeeCount Int
+  userId      String?
+  userEmail   String?
+  createdAt   DateTime @default(now())
+  details     String?  // JSON or text details
+}
+
+model PayrollRecord {
+  id              String        @id @default(cuid())
+  employeeId      String
+  employee        Employee      @relation(fields: [employeeId], references: [id])
+  periodId        String
+  period          PayrollPeriod @relation(fields: [periodId], references: [id])
+  baseSalary      Float
+  overtime25h     Float         @default(0)
+  overtime50h     Float         @default(0)
+  overtime100h    Float         @default(0)
+  overtime25Value Float         @default(0)
+  overtime50Value Float         @default(0)
+  overtime100Value Float        @default(0)
+  daysWorked      Int           @default(30)
+  netSalary       Float
+  totalEarnings   Float
+  totalDeductions Float
+  benefits        Benefit[]
+  deductions      Deduction[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([employeeId, periodId])
+}
+
+model Benefit {
+  id              String                @id @default(cuid())
+  payrollRecordId String
+  payrollRecord   PayrollRecord         @relation(fields: [payrollRecordId], references: [id])
+  type            BenefitType
+  amount          Float
+  description     String?
+  earningTypeId   String?
+  earningType     AdditionalEarningType? @relation(fields: [earningTypeId], references: [id])
+}
+
+model Deduction {
+  id              String                  @id @default(cuid())
+  payrollRecordId String
+  payrollRecord   PayrollRecord           @relation(fields: [payrollRecordId], references: [id])
+  type            DeductionType
+  amount          Float
+  description     String?
+  deductionTypeId String?
+  deductionType   AdditionalDeductionType? @relation(fields: [deductionTypeId], references: [id])
+}
+
+model AdditionalEarningType {
+  id          String    @id @default(cuid())
+  name        String    
+  description String?
+  formula     String?   // Ej: "salary / 30 * daysWorked" o null para valor fijo
+  isTaxable   Boolean   @default(true)
+  isIessable  Boolean   @default(true)
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  benefits    Benefit[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([name, companyId])
+}
+
+model AdditionalDeductionType {
+  id          String      @id @default(cuid())
+  name        String      
+  description String?
+  formula     String?     // Ej: "salary * 0.01" o null para valor fijo
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id])
+  deductions  Deduction[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([name, companyId])
+}
