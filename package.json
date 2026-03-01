@@ -9,9 +9,6 @@
     "lint": "eslint",
     "test": "vitest run"
   },
-  "engines": {
-    "node": ">=20.0.0"
-  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
