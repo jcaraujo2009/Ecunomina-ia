@@ -3,6 +3,10 @@ import { Users, CreditCard, Building2, Briefcase, TrendingUp, Calendar, Activity
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import clsx from 'clsx';
+import Link from 'next/link';
+import { resetUserPassword } from './settings/users/actions';
+import { ResetPasswordButton } from '@/components/ResetPasswordButton';
+import { UpdateRoleButton } from '@/components/UpdateRoleButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +28,7 @@ async function CardWrapper({ companyId }: { companyId: string }) {
             <Card title="Nóminas Procesadas" value={payrollCount} icon={CreditCard} color="indigo" />
             <Card title="Departamentos" value={departmentCount} icon={Building2} color="violet" />
             <Card title="Cargos" value={roleCount} icon={Briefcase} color="fuchsia" />
-            
+
             <div className="sm:col-span-2 lg:col-span-4">
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
                     <div className="flex items-center justify-between">
@@ -44,21 +48,41 @@ async function CardWrapper({ companyId }: { companyId: string }) {
 
 export default async function DashboardPage() {
     const session = await auth();
-    
+
     if (!session) {
         return <div className="p-8">Cargando sesión...</div>;
     }
 
-    const companyId = session?.user?.companyId;
-    const role = (session?.user?.role as string) || 'USER';
-    const companyName = companyId ? (await prisma.company.findUnique({ where: { id: companyId } }))?.name : null;
+    let companyId = session?.user?.companyId;
+    let role = 'USER';
+
+    try {
+        role = (session?.user?.role as string) || 'USER';
+    } catch (e) {
+        console.error("Error getting role:", e);
+    }
+
+    let companyName = null;
+    try {
+        if (companyId) {
+            const company = await prisma.company.findUnique({ where: { id: companyId } });
+            companyName = company?.name;
+        }
+    } catch (e) {
+        console.error("Error getting company:", e);
+    }
 
     // --- SUPER ADMIN VIEW ---
     if (role === 'SUPER_ADMIN') {
-        const allUsers = await prisma.user.findMany({
-            include: { company: true },
-            orderBy: { createdAt: 'desc' }
-        });
+        let allUsers: any[] = [];
+        try {
+            allUsers = await prisma.user.findMany({
+                include: { company: true },
+                orderBy: { createdAt: 'desc' }
+            });
+        } catch (e) {
+            console.error("Error fetching users:", e);
+        }
 
         return (
             <main className="space-y-8">
@@ -71,7 +95,7 @@ export default async function DashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <a href="/settings/companies" className="block p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all">
+                    <Link href="/settings/companies" className="block p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all">
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-blue-50 rounded-lg text-blue-600">
                                 <Building2 className="w-6 h-6" />
@@ -81,8 +105,8 @@ export default async function DashboardPage() {
                                 <p className="text-sm text-slate-500">Ver listado y crear nuevas empresas</p>
                             </div>
                         </div>
-                    </a>
-                    <a href="/audit" className="block p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all">
+                    </Link>
+                    <Link href="/audit" className="block p-6 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all">
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-indigo-50 rounded-lg text-indigo-600">
                                 <Activity className="w-6 h-6" />
@@ -92,7 +116,7 @@ export default async function DashboardPage() {
                                 <p className="text-sm text-slate-500">Ver historial de nóminas calculadas</p>
                             </div>
                         </div>
-                    </a>
+                    </Link>
                 </div>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -118,19 +142,10 @@ export default async function DashboardPage() {
                                         <td className="px-6 py-4 text-slate-600">{user.email}</td>
                                         <td className="px-6 py-4 text-slate-600">{user.company?.name || 'N/A'}</td>
                                         <td className="px-6 py-4">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                user.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-800' :
-                                                user.role === 'ADMIN' ? 'bg-blue-100 text-blue-800' :
-                                                'bg-gray-100 text-gray-800'
-                                            }`}>
-                                                {user.role}
-                                            </span>
+                                            <UpdateRoleButton userId={user.id} currentRole={user.role} />
                                         </td>
                                         <td className="px-6 py-4 text-right flex justify-end gap-2">
-                                            {/* TODO: Implementar acciones de reset y delete */}
-                                            <button className="text-indigo-600 hover:text-indigo-900" title="Restablecer Clave">
-                                                <Key className="w-4 h-4" />
-                                            </button>
+                                            <ResetPasswordButton userId={user.id} />
                                             <button className="text-red-600 hover:text-red-900" title="Desactivar">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
@@ -205,7 +220,7 @@ export default async function DashboardPage() {
                             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold text-xs">15</div>
                             <div>
                                 <p className="text-sm font-semibold text-slate-900">Decimo Cuarto (Costa)</p>
-                                <p className="text-xs text-slate-500">Pago长辈 pendientes para empleados de Costa</p>
+                                <p className="text-xs text-slate-500">Pagos pendientes para empleados de Costa</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4 p-3 rounded-lg bg-purple-50 border border-purple-100">
@@ -249,7 +264,7 @@ function Card({
         violet: { bg: 'bg-violet-50', text: 'text-violet-600', icon: 'bg-violet-100' },
         fuchsia: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-600', icon: 'bg-fuchsia-100' },
     };
-    
+
     const colors = colorMap[color] || colorMap.blue;
 
     return (

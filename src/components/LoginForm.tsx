@@ -1,77 +1,87 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { authenticate } from '@/app/lib/actions';
+import { useRouter } from 'next/navigation';
+import { Mail, Lock, LogIn } from 'lucide-react';
 
 export default function LoginForm() {
-    const [errorMessage, dispatch] = useActionState(authenticate, undefined);
+    const [error, setError] = useState<string | undefined>();
+    const router = useRouter();
+
+    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const formData = new FormData(event.currentTarget);
+        
+        const result = await authenticate(undefined, formData);
+        
+        if (result) {
+            setError(result);
+        } else {
+            router.push('/');
+            router.refresh();
+        }
+    }
 
     return (
-        <form action={dispatch} className="space-y-3">
-            <div className="flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8">
-                <h1 className="mb-3 text-2xl">
-                    Please log in to continue.
-                </h1>
-                <div className="w-full">
-                    <div>
-                        <label
-                            className="mb-3 mt-5 block text-xs font-medium text-gray-900"
-                            htmlFor="email"
-                        >
-                            Email
-                        </label>
-                        <div className="relative">
-                            <input
-                                className="peer block w-full rounded-md border border-gray-200 py-[9px] pl-10 text-sm outline-2 placeholder:text-gray-500"
-                                id="email"
-                                type="email"
-                                name="email"
-                                placeholder="Enter your email address"
-                                required
-                            />
-                        </div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+                    {error}
+                </div>
+            )}
+            
+            <div>
+                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+                    Correo electrónico
+                </label>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Mail className="h-5 w-5 text-slate-400" />
                     </div>
-                    <div className="mt-4">
-                        <label
-                            className="mb-3 mt-5 block text-xs font-medium text-gray-900"
-                            htmlFor="password"
-                        >
-                            Password
-                        </label>
-                        <div className="relative">
-                            <input
-                                className="peer block w-full rounded-md border border-gray-200 py-[9px] pl-10 text-sm outline-2 placeholder:text-gray-500"
-                                id="password"
-                                type="password"
-                                name="password"
-                                placeholder="Enter password"
-                                required
-                                minLength={6}
-                            />
-                        </div>
+                    <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="tu@email.com"
+                    />
+                </div>
+            </div>
+
+            <div>
+                <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+                    Contraseña
+                </label>
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Lock className="h-5 w-5 text-slate-400" />
                     </div>
+                    <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        autoComplete="current-password"
+                        required
+                        minLength={6}
+                        className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        placeholder="••••••••"
+                    />
                 </div>
-                <LoginButton />
-                <div
-                    className="flex h-8 items-end space-x-1"
-                    aria-live="polite"
-                    aria-atomic="true"
-                >
-                    {errorMessage && (
-                        <>
-                            <p className="text-sm text-red-500">{errorMessage}</p>
-                        </>
-                    )}
-                </div>
-                <div className="mt-4 text-center">
-                    <p className="text-sm text-gray-600">
-                        ¿No tienes cuenta?{' '}
-                        <a href="/register" className="text-blue-600 hover:underline">
-                            Regístrate aquí
-                        </a>
-                    </p>
-                </div>
+            </div>
+
+            <LoginButton />
+            
+            <div className="text-center pt-2">
+                <p className="text-sm text-slate-600">
+                    ¿No tienes cuenta?{' '}
+                    <a href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                        Regístrate aquí
+                    </a>
+                </p>
             </div>
         </form>
     );
@@ -82,10 +92,24 @@ function LoginButton() {
 
     return (
         <button
-            className="mt-4 w-full rounded-lg bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 active:bg-blue-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-disabled={pending}
+            type="submit"
+            disabled={pending}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-2.5 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-            Log in
+            {pending ? (
+                <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Iniciando sesión...
+                </span>
+            ) : (
+                <span className="flex items-center gap-2">
+                    <LogIn className="w-5 h-5" />
+                    Iniciar sesión
+                </span>
+            )}
         </button>
     );
 }

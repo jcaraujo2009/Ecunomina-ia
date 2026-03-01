@@ -146,7 +146,7 @@ model Employee {
   firstName      String
   lastName       String
   email          String?         
-  identification String          @unique
+  identification String
   roleId         String
   role           Role            @relation(fields: [roleId], references: [id])
   departmentId   String
@@ -166,6 +166,7 @@ model Employee {
   payrollRecords PayrollRecord[]
 
   @@unique([email, companyId]) // Unique email per company
+  @@unique([identification, companyId]) // Unique identification per company
 }
 
 model Department {

@@ -4,6 +4,17 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { PayrollRecord, Company, Benefit, Deduction } from '@/types';
 
+function addFooter(doc: jsPDF) {
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text('Generado por Ecunomina - Sistema de Gestión de Nómina', 105, 290, { align: 'center' });
+        doc.text(`Página ${i} de ${pageCount}`, 195, 290, { align: 'right' });
+    }
+}
+
 export function exportPayrollToExcel(periodName: string, records: PayrollRecord[], company?: Company) {
     // Collect all unique additional categories
     const allBenefitNames = new Set<string>();
@@ -130,6 +141,8 @@ export function exportPayrollToPDF(periodName: string, records: PayrollRecord[],
         alternateRowStyles: { fillColor: [245, 245, 245] },
     });
 
+    addFooter(doc);
+
     const fileName = company ? `${company.name}_Nomina_${periodName}` : `Nomina_${periodName}`;
     doc.save(`${fileName.replace(/ /g, '_')}.pdf`);
 }
@@ -242,6 +255,8 @@ export function generateIndividualPaySlip(employee: any, period: string, record:
     doc.setTextColor(0, 0, 0);
     doc.text('RECIBÍ CONFORME', 60, signY + 5, { align: 'center' });
     doc.text('EMPRESA', 150, signY + 5, { align: 'center' });
+
+    addFooter(doc);
 
     const fileName = company ? `Rol_${employee.lastName}_${company.name}_${period}` : `Rol_${employee.lastName}_${period}`;
     doc.save(`${fileName.replace(/ /g, '_')}.pdf`);
@@ -385,6 +400,8 @@ export async function generatePayslipPDF(record: any, company: any, periodName: 
     doc.setFont("helvetica", "bold");
     doc.text("LIQUIDO A RECIBIR:", 14, yPos);
     doc.text(`$${record.netSalary.toFixed(2)}`, 80, yPos);
+
+    addFooter(doc);
 
     return doc.output('arraybuffer');
 }

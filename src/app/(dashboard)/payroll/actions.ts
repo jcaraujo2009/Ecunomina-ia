@@ -216,6 +216,17 @@ export async function generatePayrollForPeriod(periodId: string) {
         data: { status: "PROCESSED" }
     })
 
+    await (prisma as any).payrollAudit.create({
+        data: {
+            periodId,
+            action: "CALCULATED",
+            employeeCount: employees.length,
+            userId: session?.user?.id,
+            userEmail: session?.user?.email,
+            details: JSON.stringify({ type: period.type, year: period.year, month: period.month })
+        }
+    })
+
     revalidatePath("/payroll")
 }
 
@@ -299,6 +310,18 @@ export async function generateDecimoTerceroPayroll(periodId: string) {
     }
 
     await (prisma as any).payrollPeriod.update({ where: { id: periodId }, data: { status: "PROCESSED" } })
+
+    await (prisma as any).payrollAudit.create({
+        data: {
+            periodId,
+            action: "CALCULATED",
+            employeeCount: employees.length,
+            userId: session?.user?.id,
+            userEmail: session?.user?.email,
+            details: JSON.stringify({ type: period.type, year: period.year, month: period.month })
+        }
+    })
+
     revalidatePath("/payroll")
 }
 
@@ -400,6 +423,18 @@ export async function generateDecimoCuartoPayroll(periodId: string) {
     }
 
     await (prisma as any).payrollPeriod.update({ where: { id: periodId }, data: { status: "PROCESSED" } })
+
+    await (prisma as any).payrollAudit.create({
+        data: {
+            periodId,
+            action: "CALCULATED",
+            employeeCount: employees.length,
+            userId: session?.user?.id,
+            userEmail: session?.user?.email,
+            details: JSON.stringify({ type: period.type, year: period.year, month: period.month })
+        }
+    })
+
     revalidatePath("/payroll")
 }
 

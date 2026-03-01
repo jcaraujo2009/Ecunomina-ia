@@ -42,11 +42,39 @@ export async function deleteUser(id: string) {
     if (!companyId) throw new Error('No company associated with user');
     if (userRole !== 'ADMIN') throw new Error('Unauthorized: Admin role required');
 
-    // Prevent self-deletion if needed or check if last admin
-    // For now, simple delete
     await prisma.user.delete({
         where: { id, companyId },
     });
 
     revalidatePath('/settings/users');
+}
+
+export async function resetUserPassword(userId: string, newPassword: string) {
+    const session = await auth();
+    const userRole = session?.user?.role;
+
+    if (userRole !== 'SUPER_ADMIN') throw new Error('Unauthorized: Super Admin role required');
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+    });
+
+    revalidatePath('/');
+}
+
+export async function updateUserRole(userId: string, newRole: string) {
+    const session = await auth();
+    const userRole = session?.user?.role;
+
+    if (userRole !== 'SUPER_ADMIN') throw new Error('Unauthorized: Super Admin role required');
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { role: newRole as any },
+    });
+
+    revalidatePath('/');
 }
