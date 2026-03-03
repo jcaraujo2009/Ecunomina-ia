@@ -1,4 +1,6 @@
 import NextAuth from 'next-auth';
+import type { JWT } from 'next-auth/jwt';
+import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
 import { prisma } from './lib/prisma';
@@ -54,14 +56,14 @@ const authOptions = {
         }),
     ],
     callbacks: {
-        async jwt({ token, user }) {
+        async jwt({ token, user }: { token: JWT; user?: any }) {
             if (user) {
-                token.companyId = (user as any).companyId;
-                token.role = (user as any).role;
+                token.companyId = user.companyId;
+                token.role = user.role;
             }
             return token;
         },
-        async session({ session, token }) {
+        async session({ session, token }: { session: Session; token: JWT }) {
             if (token) {
                 session.user.companyId = token.companyId as string;
                 session.user.role = token.role as any;
