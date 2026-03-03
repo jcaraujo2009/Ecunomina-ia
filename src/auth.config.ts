@@ -1,9 +1,12 @@
+import type { Session } from 'next-auth';
+import type { NextRequest } from 'next/server';
+
 export const authConfig = {
     pages: {
         signIn: '/login',
     },
     callbacks: {
-        authorized({ auth, request: { nextUrl } }) {
+        authorized({ auth, request: { nextUrl } }: { auth: Session | null; request: NextRequest }) {
             const isLoggedIn = !!auth?.user;
             const isOnLogin = nextUrl.pathname.startsWith('/login');
 
