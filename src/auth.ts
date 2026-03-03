@@ -15,7 +15,7 @@ async function getUser(email: string): Promise<User | null> {
     }
 }
 
-export const { auth, signIn, signOut, handlers } = NextAuth({
+const authOptions = {
     providers: [
         Credentials({
             credentials: {
@@ -69,4 +69,9 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             return session;
         },
     }
-});
+};
+
+const handler = NextAuth(authOptions);
+
+export const { auth, signIn, signOut } = handler;
+export { handler as GET, handler as POST };
