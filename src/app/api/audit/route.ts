@@ -3,7 +3,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-    const session = await auth()
+    const session = await auth();
     
     if (!session || session.user.role !== 'SUPER_ADMIN') {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
