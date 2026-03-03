@@ -9,7 +9,11 @@ export async function authenticate(
     formData: FormData,
 ) {
     try {
-        await signIn('credentials', formData)
+        const credentials = {
+            email: formData.get('email') as string,
+            password: formData.get('password') as string,
+        };
+        await signIn('credentials', credentials)
     } catch (error) {
         if (error instanceof AuthError) {
             return 'Invalid credentials.'

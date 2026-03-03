@@ -1,4 +1,6 @@
 import NextAuth from 'next-auth';
+import { signIn as nextAuthSignIn, signOut as nextAuthSignOut } from 'next-auth/react';
+import { getServerSession } from 'next-auth/next';
 import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
@@ -76,4 +78,10 @@ const authOptions = {
 const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
-export default handler;
+export { nextAuthSignIn as signIn, nextAuthSignOut as signOut };
+
+export async function auth() {
+    return await getServerSession(authOptions);
+}
+
+export { authOptions };
