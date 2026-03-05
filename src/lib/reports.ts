@@ -303,6 +303,7 @@ export function exportPayrollToIESS(periodName: string, records: PayrollRecord[]
     });
 
     // Download file
+    if (typeof window === 'undefined') return;
     const blob = new Blob([content], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');

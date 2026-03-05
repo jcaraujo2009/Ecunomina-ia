@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { authenticate } from '@/app/lib/actions';
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, LogIn } from 'lucide-react';
 
@@ -14,10 +14,14 @@ export default function LoginForm() {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         
-        const result = await authenticate(undefined, formData);
+        const result = await signIn('credentials', {
+            email: formData.get('email'),
+            password: formData.get('password'),
+            redirect: false,
+        });
         
-        if (result) {
-            setError(result);
+        if (result?.error) {
+            setError('Invalid credentials.');
         } else {
             router.push('/');
             router.refresh();
