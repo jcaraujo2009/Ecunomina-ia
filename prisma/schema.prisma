@@ -52,6 +52,7 @@ enum DeductionType {
   IESS_PERSONAL
   INCOME_TAX
   OTHER
+  ADDITIONAL
 }
 
 model User {
