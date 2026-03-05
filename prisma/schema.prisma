@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("ECUNOMINA_DATABASE_URL")
+  url      = env("ecunomina_DATABASE_URL")
 }
 
 enum UserRole {
