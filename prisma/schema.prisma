@@ -46,6 +46,7 @@ enum BenefitType {
   DECIMO_CUARTO
   FONDO_RESERVA
   OTHER
+  ADDITIONAL
 }
 
 enum DeductionType {
