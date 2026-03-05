@@ -81,9 +81,9 @@ export default function LoginForm() {
             
             <div className="text-center pt-2">
                 <p className="text-sm text-slate-600">
-                    ¿No tienes cuenta?{' '}
-                    <a href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-                        Regístrate aquí
+                    ¿Olvidaste tu contraseña?{' '}
+                    <a href="/forgot-password" className="text-blue-600 hover:text-blue-700 font-medium">
+                        Recupérala aquí
                     </a>
                 </p>
             </div>

@@ -4,9 +4,21 @@ import { UserPlus, Trash2 } from "lucide-react";
 import { createUser, deleteUser } from "./actions";
 import { UserRole } from "@/types";
 
-async function getUsers(companyId: string) {
-    return await prisma.user.findMany({
-        where: { companyId },
+async function getUsers(companyId?: string) {
+    if (companyId) {
+        return await prisma.user.findMany({
+            where: { companyId },
+            orderBy: { name: 'asc' }
+        });
+    } else {
+        return await prisma.user.findMany({
+            orderBy: { name: 'asc' }
+        });
+    }
+}
+
+async function getCompanies() {
+    return await prisma.company.findMany({
         orderBy: { name: 'asc' }
     });
 }
@@ -14,12 +26,17 @@ async function getUsers(companyId: string) {
 export default async function UsersPage() {
     const session = await auth();
     const companyId = session?.user?.companyId;
-    const role = session?.user?.role;
+    const role = session?.user?.role as string;
 
-    if (!companyId) return <div className="p-8">No tienes una empresa asociada.</div>;
-    if (role !== 'ADMIN') return <div className="p-8">No tienes permisos para acceder a esta sección.</div>;
+    const isSuperAdmin = role === 'SUPER_ADMIN';
+    const isAdmin = role === 'ADMIN';
 
-    const users = await getUsers(companyId);
+    if (!isSuperAdmin && !isAdmin) return <div className="p-8">No tienes permisos para acceder a esta sección.</div>;
+
+    const [users, companies] = await Promise.all([
+        getUsers(companyId || undefined),
+        isSuperAdmin ? getCompanies() : Promise.resolve([])
+    ]);
 
     return (
         <div className="p-8 space-y-6">
@@ -38,6 +55,23 @@ export default async function UsersPage() {
                             Agregar Usuario
                         </h2>
                         <form action={createUser} className="space-y-4">
+                            {isSuperAdmin && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700">Empresa</label>
+                                    <select
+                                        name="companyId"
+                                        required
+                                        className="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    >
+                                        <option value="">Seleccionar empresa</option>
+                                        {companies.map((company: any) => (
+                                            <option key={company.id} value={company.id}>
+                                                {company.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-slate-700">Nombre</label>
                                 <input
@@ -96,6 +130,7 @@ export default async function UsersPage() {
                                     <th className="px-6 py-3 font-semibold text-slate-900">Nombre</th>
                                     <th className="px-6 py-3 font-semibold text-slate-900">Email</th>
                                     <th className="px-6 py-3 font-semibold text-slate-900">Rol</th>
+                                    {isSuperAdmin && <th className="px-6 py-3 font-semibold text-slate-900">Empresa</th>}
                                     <th className="px-6 py-3 font-semibold text-slate-900 text-right">Acciones</th>
                                 </tr>
                             </thead>
@@ -110,6 +145,11 @@ export default async function UsersPage() {
                                                 {user.role}
                                             </span>
                                         </td>
+                                        {isSuperAdmin && (
+                                            <td className="px-6 py-4 text-slate-600">
+                                                {user.companyId ? 'Asignada' : 'Sin empresa'}
+                                            </td>
+                                        )}
                                         <td className="px-6 py-4 text-right">
                                             {user.email !== session?.user?.email && (
                                                 <form action={deleteUser.bind(null, user.id)}>

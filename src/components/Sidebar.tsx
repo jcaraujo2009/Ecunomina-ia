@@ -26,7 +26,7 @@ const links = [
     { name: 'Usuarios', href: '/settings/users', icon: Users, adminOnly: true },
 ];
 
-export default function Sidebar({ logo, userRole }: { logo?: string | null, userRole?: string }) {
+export default function Sidebar({ logo, userRole, companyName }: { logo?: string | null, userRole?: string, companyName?: string | null }) {
     const pathname = usePathname();
 
     const filteredLinks = links.filter(link => 
@@ -79,6 +79,11 @@ export default function Sidebar({ logo, userRole }: { logo?: string | null, user
 
             {/* User Area */}
             <div className="p-4 border-t border-slate-800">
+                {companyName && (
+                    <div className="mb-3 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-md">
+                        <p className="text-sm font-bold text-white truncate">{companyName}</p>
+                    </div>
+                )}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-9 h-9 bg-slate-700 rounded-full flex items-center justify-center text-sm font-medium">

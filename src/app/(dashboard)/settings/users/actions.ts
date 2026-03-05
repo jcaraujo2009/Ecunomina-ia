@@ -9,15 +9,28 @@ import { UserRole } from '@/types';
 export async function createUser(formData: FormData) {
     const session = await auth();
     const companyId = session?.user?.companyId;
-    const userRole = session?.user?.role;
+    const userRole = session?.user?.role as string;
 
-    if (!companyId) throw new Error('No company associated with user');
-    if (userRole !== 'ADMIN') throw new Error('Unauthorized: Admin role required');
+    const isSuperAdmin = userRole === 'SUPER_ADMIN';
+    const isAdmin = userRole === 'ADMIN';
+
+    if (!isSuperAdmin && !isAdmin) throw new Error('Unauthorized');
 
     const name = formData.get('name') as string;
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
     const role = (formData.get('role') as string) as UserRole;
+    
+    let targetCompanyId = companyId;
+    
+    if (isSuperAdmin) {
+        const selectedCompanyId = formData.get('companyId') as string;
+        if (selectedCompanyId) {
+            targetCompanyId = selectedCompanyId;
+        }
+    }
+
+    if (!targetCompanyId) throw new Error('Company is required');
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -27,7 +40,7 @@ export async function createUser(formData: FormData) {
             email,
             password: hashedPassword,
             role,
-            companyId,
+            companyId: targetCompanyId,
         },
     });
 
@@ -37,14 +50,23 @@ export async function createUser(formData: FormData) {
 export async function deleteUser(id: string) {
     const session = await auth();
     const companyId = session?.user?.companyId;
-    const userRole = session?.user?.role;
+    const userRole = session?.user?.role as string;
 
-    if (!companyId) throw new Error('No company associated with user');
-    if (userRole !== 'ADMIN') throw new Error('Unauthorized: Admin role required');
+    const isSuperAdmin = userRole === 'SUPER_ADMIN';
+    const isAdmin = userRole === 'ADMIN';
 
-    await prisma.user.delete({
-        where: { id, companyId },
-    });
+    if (!isSuperAdmin && !isAdmin) throw new Error('Unauthorized');
+
+    if (isSuperAdmin) {
+        await prisma.user.delete({
+            where: { id },
+        });
+    } else {
+        if (!companyId) throw new Error('No company associated with user');
+        await prisma.user.delete({
+            where: { id, companyId },
+        });
+    }
 
     revalidatePath('/settings/users');
 }

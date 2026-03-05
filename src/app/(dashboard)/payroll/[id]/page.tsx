@@ -23,7 +23,7 @@ export default async function PayrollDetailsPage({ params }: { params: { id: str
             include: {
                 records: {
                     include: {
-                        employee: true,
+                        employee: { include: { role: true, department: true } },
                         benefits: { include: { earningType: true } },
                         deductions: { include: { deductionType: true } }
                     }
@@ -36,7 +36,7 @@ export default async function PayrollDetailsPage({ params }: { params: { id: str
 
     if (!period) notFound()
 
-    const isClosed = period.status === 'closed'
+    const isClosed = period.status === 'CLOSED'
     const periodName = new Intl.DateTimeFormat('es-EC', { month: 'long', year: 'numeric' }).format(period.startDate)
 
     return (
@@ -51,11 +51,11 @@ export default async function PayrollDetailsPage({ params }: { params: { id: str
                         </h1>
                         <span className={clsx(
                             "px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider",
-                            period.status === 'closed' ? "bg-gray-100 text-gray-800 border border-gray-200" :
-                                period.status === 'processed' ? "bg-blue-100 text-blue-800 border border-blue-200" :
+                            period.status === 'CLOSED' ? "bg-gray-100 text-gray-800 border border-gray-200" :
+                                period.status === 'PROCESSED' ? "bg-blue-100 text-blue-800 border border-blue-200" :
                                     "bg-yellow-100 text-yellow-800 border border-yellow-200"
                         )}>
-                            {period.status === 'closed' ? 'Cerrada' : period.status === 'processed' ? 'Procesada' : 'Borrador'}
+                            {period.status === 'CLOSED' ? 'Cerrada' : period.status === 'PROCESSED' ? 'Procesada' : 'Borrador'}
                         </span>
                     </div>
                     <p className="text-gray-500 mt-1">Gestión de pagos y descuentos del periodo.</p>

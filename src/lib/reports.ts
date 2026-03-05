@@ -172,7 +172,7 @@ export function generateIndividualPaySlip(employee: any, period: string, record:
     }
 
     doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(0, 51, 102);
     doc.text('ROL DE PAGOS INDIVIDUAL', 105, 35, { align: 'center' });
     doc.text(period, 105, 43, { align: 'center' });
 
@@ -181,10 +181,10 @@ export function generateIndividualPaySlip(employee: any, period: string, record:
     doc.line(14, 50, 196, 50);
 
     doc.setFontSize(10);
-    doc.text(`EMPLEADO: ${employee.firstName} ${employee.lastName}`, 14, 60);
-    doc.text(`ID/CÉDULA: ${employee.identification}`, 14, 67);
-    doc.text(`CARGO: ${employee.role}`, 14, 74);
-    doc.text(`DPTO: ${employee.department}`, 14, 81);
+    doc.text(`EMPLEADO: ${employee.firstName.toUpperCase()} ${employee.lastName.toUpperCase()}`, 14, 60);
+    doc.text(`ID/CÉDULA: ${employee.identification.toUpperCase()}`, 14, 67);
+    doc.text(`CARGO: ${employee.role?.name?.toUpperCase() || 'UNDEFINED'}`, 14, 74);
+    doc.text(`DPTO: ${employee.department?.name?.toUpperCase() || 'UNDEFINED'}`, 14, 81);
 
     doc.text(`FECHA INGRESO: ${format(new Date(employee.startDate), 'dd/MM/yyyy')}`, 120, 60);
     doc.text(`DÍAS TRABAJADOS: ${record.daysWorked}`, 120, 67);
@@ -198,19 +198,19 @@ export function generateIndividualPaySlip(employee: any, period: string, record:
     const otValue = record.overtime25Value + record.overtime50Value + record.overtime100Value;
 
     const earnings = [
-        { desc: 'Sueldo Proporcional', amount: record.baseSalary / 30 * record.daysWorked },
-        { desc: 'Horas Extras', amount: otValue },
+        { desc: 'SUELDO PROPORCIONAL', amount: record.baseSalary / 30 * record.daysWorked },
+        { desc: 'HORAS EXTRAS', amount: otValue },
         ...record.benefits.map((b: Benefit) => ({
-            desc: b.earningType?.name || b.type.replace(/_/g, ' '),
+            desc: (b.earningType?.name || b.type.replace(/_/g, ' ')).toUpperCase(),
             amount: b.amount
         }))
     ].filter(item => item.amount > 0);
 
     const deductions = [
-        { desc: 'Aporte IESS (9.45%)', amount: iessAmount },
-        { desc: 'Impuesto a la Renta', amount: incomeTaxAmount },
+        { desc: 'APORTE IESS (9.45%)', amount: iessAmount },
+        { desc: 'IMPUESTO A LA RENTA', amount: incomeTaxAmount },
         ...record.deductions.filter((d: Deduction) => d.type !== 'IESS_PERSONAL' && d.type !== 'INCOME_TAX').map((d: Deduction) => ({
-            desc: d.deductionType?.name || d.type.replace(/_/g, ' '),
+            desc: (d.deductionType?.name || d.type.replace(/_/g, ' ')).toUpperCase(),
             amount: d.amount
         }))
     ].filter(item => item.amount > 0);
@@ -227,7 +227,7 @@ export function generateIndividualPaySlip(employee: any, period: string, record:
 
     autoTable(doc, {
         startY: 90,
-        head: [['Descripción Ingresos', 'Valor', 'Descripción Egresos', 'Valor']],
+        head: [['DESCRIPCIÓN INGRESOS', 'VALOR', 'DESCRIPCIÓN EGRESOS', 'VALOR']],
         body: body,
         theme: 'grid',
         styles: { fontSize: 9 },

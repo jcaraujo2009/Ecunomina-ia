@@ -8,26 +8,28 @@ export default async function Layout({ children }: { children: React.ReactNode }
     const companyId = session?.user?.companyId;
 
     let logo = null;
+    let companyName = null;
     if (companyId) {
         const company = await prisma.company.findUnique({
             where: { id: companyId },
-            select: { logo: true }
+            select: { logo: true, name: true }
         });
         logo = company?.logo;
+        companyName = company?.name;
     }
 
     return (
         <div className="flex h-screen bg-slate-50">
-            <Sidebar logo={logo} userRole={session?.user?.role} />
+            <Sidebar logo={logo} userRole={session?.user?.role} companyName={companyName} />
             <main className="flex-1 ml-64 overflow-y-auto">
                 <div className="container mx-auto px-8 py-8 max-w-7xl">
                     {children}
                 </div>
             </main>
-            
+
             {/* WhatsApp Support Button */}
             <a
-                href="https://wa.me/593999999999"
+                href="https://wa.me/593980122343"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="fixed bottom-8 right-8 z-50 flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1"

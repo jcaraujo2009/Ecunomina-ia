@@ -8,6 +8,17 @@ import { clsx } from "clsx"
 async function getPayrollPeriods(companyId: string) {
     return await (prisma as any).payrollPeriod.findMany({
         where: { companyId },
+        include: {
+            records: {
+                select: {
+                    id: true,
+                    baseSalary: true,
+                    totalEarnings: true,
+                    totalDeductions: true,
+                    netSalary: true,
+                }
+            }
+        },
         orderBy: [{ year: 'desc' }, { month: 'desc' }]
     })
 }
@@ -37,8 +48,34 @@ export default async function PayrollPage() {
     const currentMonth = now.getMonth() + 1
     const currentYear = now.getFullYear()
 
+    const allRecords = periods.flatMap((p: any) => p.records || [])
+    const totalEmployees = allRecords.length
+    const totalNetSalary = allRecords.reduce((sum: number, r: any) => sum + (r.netSalary || 0), 0)
+    const totalEarnings = allRecords.reduce((sum: number, r: any) => sum + (r.totalEarnings || 0), 0)
+    const totalDeductions = allRecords.reduce((sum: number, r: any) => sum + (r.totalDeductions || 0), 0)
+
     return (
         <div className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid gap-4 md:grid-cols-4">
+                <div className="rounded-xl border bg-white p-5 shadow-sm">
+                    <p className="text-sm text-slate-500">Total Períodos</p>
+                    <p className="text-2xl font-bold text-gray-900">{periods.length}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-5 shadow-sm">
+                    <p className="text-sm text-slate-500">Total Empleados</p>
+                    <p className="text-2xl font-bold text-gray-900">{totalEmployees}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-5 shadow-sm">
+                    <p className="text-sm text-slate-500">Total Nómina (Neto)</p>
+                    <p className="text-2xl font-bold text-green-600">${totalNetSalary.toFixed(2)}</p>
+                </div>
+                <div className="rounded-xl border bg-white p-5 shadow-sm">
+                    <p className="text-sm text-slate-500">Total Egresos</p>
+                    <p className="text-2xl font-bold text-red-600">${totalDeductions.toFixed(2)}</p>
+                </div>
+            </div>
+
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Nómina</h1>
@@ -113,6 +150,12 @@ export default async function PayrollPage() {
                     const isMensual = periodType === "MENSUAL"
                     const periodLabel = new Intl.DateTimeFormat('es-EC', { month: 'long', year: 'numeric' }).format(new Date(period.startDate))
 
+                    const totalEmployees = period.records?.length || 0
+                    const totalBaseSalary = period.records?.reduce((sum: number, r: any) => sum + (r.baseSalary || 0), 0) || 0
+                    const totalEarnings = period.records?.reduce((sum: number, r: any) => sum + (r.totalEarnings || 0), 0) || 0
+                    const totalDeductions = period.records?.reduce((sum: number, r: any) => sum + (r.totalDeductions || 0), 0) || 0
+                    const totalNetSalary = period.records?.reduce((sum: number, r: any) => sum + (r.netSalary || 0), 0) || 0
+
                     return (
                         <div key={period.id} className="rounded-xl border bg-white p-5 shadow-sm flex flex-col gap-4">
                             <div className="flex items-start justify-between gap-2">
@@ -134,6 +177,25 @@ export default async function PayrollPage() {
                                         </span>
                                     </div>
                                     <h3 className="mt-2 text-base font-semibold text-gray-900 capitalize">{periodLabel}</h3>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div className="bg-slate-50 rounded-lg p-2">
+                                    <p className="text-xs text-slate-500">Empleados</p>
+                                    <p className="font-semibold text-gray-900">{totalEmployees}</p>
+                                </div>
+                                <div className="bg-slate-50 rounded-lg p-2">
+                                    <p className="text-xs text-slate-500">Neto Total</p>
+                                    <p className="font-semibold text-green-600">${totalNetSalary.toFixed(2)}</p>
+                                </div>
+                                <div className="bg-slate-50 rounded-lg p-2">
+                                    <p className="text-xs text-slate-500">Total Ingresos</p>
+                                    <p className="font-semibold text-blue-600">${totalEarnings.toFixed(2)}</p>
+                                </div>
+                                <div className="bg-slate-50 rounded-lg p-2">
+                                    <p className="text-xs text-slate-500">Total Egresos</p>
+                                    <p className="font-semibold text-red-600">${totalDeductions.toFixed(2)}</p>
                                 </div>
                             </div>
 
