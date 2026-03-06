@@ -5,29 +5,32 @@ import { exportPayrollToExcel, exportPayrollToPDF, exportPayrollToIESS } from "@
 
 interface ExportButtonsProps {
     periodName: string;
+    periodType?: string;
     records: any[];
     company?: any;
 }
 
-export default function ExportButtons({ periodName, records, company }: ExportButtonsProps) {
+export default function ExportButtons({ periodName, periodType, records, company }: ExportButtonsProps) {
     return (
         <div className="flex gap-2">
-             <button
-                onClick={() => exportPayrollToIESS(periodName, records, company)}
-                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors"
-            >
-                <FileText className="h-4 w-4" />
-                IESS
-            </button>
+             {periodType !== 'DECIMO_CUARTO_COSTA' && periodType !== 'DECIMO_CUARTO_SIERRA' && (
+                <button
+                    onClick={() => exportPayrollToIESS(periodName, records, company)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                >
+                    <FileText className="h-4 w-4" />
+                    IESS
+                </button>
+            )}
             <button
-                onClick={() => exportPayrollToExcel(periodName, records, company)}
+                onClick={() => exportPayrollToExcel(periodName, periodType, records, company)}
                 className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2 text-sm font-medium text-green-700 hover:bg-green-100 transition-colors"
             >
                 <FileSpreadsheet className="h-4 w-4" />
                 Excel
             </button>
             <button
-                onClick={() => exportPayrollToPDF(periodName, records, company)}
+                onClick={() => exportPayrollToPDF(periodName, periodType, records, company)}
                 className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 transition-colors"
             >
                 <FileDown className="h-4 w-4" />

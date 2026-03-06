@@ -8,6 +8,7 @@ import ExportButtons from './ExportButtons'
 export default function PayrollActions({ 
     periodId, 
     periodName, 
+    periodType,
     records, 
     company, 
     isClosed,
@@ -16,6 +17,7 @@ export default function PayrollActions({
 }: { 
     periodId: string, 
     periodName: string, 
+    periodType?: string,
     records: any[], 
     company?: any,
     isClosed: boolean,
@@ -36,7 +38,7 @@ export default function PayrollActions({
                         Carga Masiva
                     </button>
                 )}
-                <ExportButtons periodName={periodName} records={records} company={company} />
+                <ExportButtons periodName={periodName} periodType={periodType} records={records} company={company} />
             </div>
 
             <BulkUpdateModal 

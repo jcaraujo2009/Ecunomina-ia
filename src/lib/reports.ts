@@ -4,6 +4,13 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { PayrollRecord, Company, Benefit, Deduction } from '@/types';
 
+const TYPE_LABELS: Record<string, string> = {
+    MENSUAL: "Nómina Mensual",
+    DECIMO_TERCERO: "Décimo Tercer Sueldo",
+    DECIMO_CUARTO_SIERRA: "XIV Sierra",
+    DECIMO_CUARTO_COSTA: "XIV Costa",
+}
+
 function addFooter(doc: jsPDF) {
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
@@ -15,7 +22,9 @@ function addFooter(doc: jsPDF) {
     }
 }
 
-export function exportPayrollToExcel(periodName: string, records: PayrollRecord[], company?: Company) {
+export function exportPayrollToExcel(periodName: string, periodType: string | undefined, records: PayrollRecord[], company?: Company) {
+    const payrollType = periodType ? (TYPE_LABELS[periodType] || periodType) : "Nómina";
+    
     // Collect all unique additional categories
     const allBenefitNames = new Set<string>();
     const allDeductionNames = new Set<string>();
@@ -68,12 +77,13 @@ export function exportPayrollToExcel(periodName: string, records: PayrollRecord[
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Resumen Nómina');
 
-    const fileName = company ? `${company.name}_Nomina_${periodName}` : `Nomina_${periodName}`;
+    const fileName = company ? `${company.name}_${payrollType}_${periodName}` : `${payrollType}_${periodName}`;
     XLSX.writeFile(workbook, `${fileName.replace(/ /g, '_')}.xlsx`);
 }
 
-export function exportPayrollToPDF(periodName: string, records: PayrollRecord[], company?: Company) {
+export function exportPayrollToPDF(periodName: string, periodType: string | undefined, records: PayrollRecord[], company?: Company) {
     const doc = new jsPDF('landscape');
+    const payrollType = periodType ? (TYPE_LABELS[periodType] || periodType) : "Nómina";
 
     if (company) {
         if (company.logo) {
@@ -106,7 +116,7 @@ export function exportPayrollToPDF(periodName: string, records: PayrollRecord[],
 
     doc.setFontSize(16);
     doc.setTextColor(0);
-    doc.text(`Resumen de Nómina: ${periodName}`, 14, company ? 42 : 22);
+    doc.text(`Resumen de ${payrollType}: ${periodName}`, 14, company ? 42 : 22);
 
     const startY = company ? 45 : 30;
 
@@ -143,12 +153,14 @@ export function exportPayrollToPDF(periodName: string, records: PayrollRecord[],
 
     addFooter(doc);
 
-    const fileName = company ? `${company.name}_Nomina_${periodName}` : `Nomina_${periodName}`;
+    const fileName = company ? `${company.name}_${payrollType}_${periodName}` : `${payrollType}_${periodName}`;
     doc.save(`${fileName.replace(/ /g, '_')}.pdf`);
 }
 
-export function generateIndividualPaySlip(employee: any, period: string, record: PayrollRecord, company?: Company) {
+export function generateIndividualPaySlip(employee: any, period: string, periodType: string | undefined, record: PayrollRecord, company?: Company) {
     const doc = new jsPDF();
+
+    const payrollType = periodType ? (TYPE_LABELS[periodType] || periodType) : "Nómina";
 
     // Header with Company Info
     if (company) {
@@ -173,7 +185,7 @@ export function generateIndividualPaySlip(employee: any, period: string, record:
 
     doc.setFontSize(14);
     doc.setTextColor(0, 51, 102);
-    doc.text('ROL DE PAGOS INDIVIDUAL', 105, 35, { align: 'center' });
+    doc.text(payrollType, 105, 35, { align: 'center' });
     doc.text(period, 105, 43, { align: 'center' });
 
     // Employee Info
@@ -356,9 +368,13 @@ export async function generatePayslipPDF(record: any, company: any, periodName: 
         earningsData.push([name, b.amount.toFixed(2)]);
     });
 
-    earningsData.push(["Décimo Tercer Sueldo", record.decimoTercero.toFixed(2)]);
-    earningsData.push(["Décimo Cuarto Sueldo", record.decimoCuarto.toFixed(2)]);
-    earningsData.push(["Fondo de Reserva", record.reserveFund.toFixed(2)]);
+    const decimoTercero = benefits.find((b: any) => b.type === 'DECIMO_TERCERO')?.amount || 0;
+    const decimoCuarto = benefits.find((b: any) => b.type === 'DECIMO_CUARTO')?.amount || 0;
+    const fondoReserva = benefits.find((b: any) => b.type === 'FONDO_RESERVA')?.amount || 0;
+
+    if (decimoTercero > 0) earningsData.push(["Décimo Tercer Sueldo", decimoTercero.toFixed(2)]);
+    if (decimoCuarto > 0) earningsData.push(["Décimo Cuarto Sueldo", decimoCuarto.toFixed(2)]);
+    if (fondoReserva > 0) earningsData.push(["Fondo de Reserva", fondoReserva.toFixed(2)]);
 
     const earningsTotal = record.totalEarnings;
 
@@ -373,15 +389,21 @@ export async function generatePayslipPDF(record: any, company: any, periodName: 
 
     yPos = (doc as any).lastAutoTable.finalY + 15;
 
+    const deductions = Array.isArray(record.deductions) ? record.deductions : [];
+    
+    const iessDeduction = deductions.find((d: any) => d.type === 'IESS_PERSONAL')?.amount || 0;
+    const incomeTax = deductions.find((d: any) => d.type === 'INCOME_TAX')?.amount || 0;
+
     const deductionsData = [
-        ["IESS (Aporte Personal)", record.iessDeduction.toFixed(2)],
-        ["Impuesto a la Renta", record.incomeTax.toFixed(2)],
+        ["IESS (Aporte Personal)", iessDeduction.toFixed(2)],
+        ["Impuesto a la Renta", incomeTax.toFixed(2)],
     ];
 
-    const deductions = Array.isArray(record.deductions) ? record.deductions : [];
     deductions.forEach((d: any) => {
-        const name = d.deductionType?.name || "Otro";
-        deductionsData.push([name, d.amount.toFixed(2)]);
+        if (d.type !== 'IESS_PERSONAL' && d.type !== 'INCOME_TAX') {
+            const name = d.deductionType?.name || "Otro";
+            deductionsData.push([name, d.amount.toFixed(2)]);
+        }
     });
 
     const deductionsTotal = record.totalDeductions;

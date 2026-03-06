@@ -231,9 +231,10 @@ export async function generatePayrollForPeriod(periodId: string) {
 }
 
 /**
- * Génera la nómina de Décimo Tercero (XIII).
- * Cubre el periodo diciembre 1 (año anterior) a noviembre 30 (año actual).
- * Calcula la prorción acumulada en nóminas mensuales y paga la diferencia.
+ * Genera la nómina de XIII (Décimo Tercer Sueldo).
+ * Período: Diciembre (año anterior) a Noviembre (año actual).
+ * Calcula en base a los ingresos IESSables de las nóminas mensuales.
+ * Formula: (Sumatoria de ingresos IESSables) / 12
  */
 export async function generateDecimoTerceroPayroll(periodId: string) {
     const session = await auth()
@@ -243,9 +244,10 @@ export async function generateDecimoTerceroPayroll(periodId: string) {
     const period = await (prisma as any).payrollPeriod.findUnique({ where: { id: periodId } })
     if (!period) throw new Error("Period not found")
 
-    // Covered period: Dec 1 (year-1) to Nov 30 (year)
     const coverYear = period.year
-    // Monthly periods in scope: Dec of prev year (month=12 year=coverYear-1) and Jan-Nov of coverYear
+
+    // Covered months: Dec (prev) - Nov (current)
+    // Dec = month 12 of coverYear-1, Jan-Nov = months 1-11 of coverYear
     const coveredMonthlyPeriods = await (prisma as any).payrollPeriod.findMany({
         where: {
             companyId,
@@ -253,7 +255,7 @@ export async function generateDecimoTerceroPayroll(periodId: string) {
             status: { in: ["PROCESSED", "CLOSED"] },
             OR: [
                 { year: coverYear - 1, month: 12 },
-                { year: coverYear, month: { lte: 11 } }
+                { year: coverYear, month: { gte: 1, lte: 11 } }
             ]
         },
         select: { id: true }
@@ -261,49 +263,72 @@ export async function generateDecimoTerceroPayroll(periodId: string) {
     const coveredPeriodIds = coveredMonthlyPeriods.map((p: any) => p.id)
 
     const employees = await (prisma as any).employee.findMany({
-        where: { companyId, status: "active" }
+        where: { companyId, status: "ACTIVE" }
     })
 
     for (const employee of employees) {
-        // Sum DECIMO_TERCERO already paid in monthly payrolls
-        const alreadyPaidBenefits = await (prisma as any).benefit.findMany({
-            where: {
-                type: "DECIMO_TERCERO",
-                payrollRecord: {
+        let totalIessableIncome = 0
+
+        if (coveredPeriodIds.length > 0) {
+            const payrollRecords = await (prisma as any).payrollRecord.findMany({
+                where: {
                     employeeId: employee.id,
                     periodId: { in: coveredPeriodIds }
+                },
+                include: {
+                    benefits: { include: { earningType: true } }
                 }
+            })
+
+            for (const record of payrollRecords) {
+                // Base salary (already pro-rated by days worked)
+                let iessableAmount = record.baseSalary || 0
+                
+                // Overtime
+                iessableAmount += (record.overtime25Value || 0) + (record.overtime50Value || 0) + (record.overtime100Value || 0)
+                
+                // Additional earnings that are IESSable
+                const iessableBenefits = record.benefits.filter((b: any) => b.earningType?.isIessable)
+                const iessableTotal = iessableBenefits.reduce((sum: number, b: any) => sum + (b.amount || 0), 0)
+                
+                iessableAmount += iessableTotal
+                
+                totalIessableIncome += iessableAmount
             }
-        })
-        const alreadyPaid = alreadyPaidBenefits.reduce((sum: number, b: any) => sum + b.amount, 0)
+        }
 
-        // Total XIII entitlement = (salary / 12) * months worked in covered period
-        // For simplicity, use covered period count as months worked
-        const monthsWorked = coveredPeriodIds.length
-        const totalEntitlement = (employee.salary / 12) * monthsWorked
-        const toPay = Math.max(0, totalEntitlement - alreadyPaid)
+        const xiiiAmount = totalIessableIncome / 12
 
-        // Upsert payroll record for this employee in this period
         const existing = await (prisma as any).payrollRecord.findUnique({
             where: { employeeId_periodId: { employeeId: employee.id, periodId } }
         })
 
         if (existing) {
             await (prisma as any).benefit.deleteMany({ where: { payrollRecordId: existing.id, earningTypeId: null } })
-            await (prisma as any).benefit.create({ data: { payrollRecordId: existing.id, type: "DECIMO_TERCERO", amount: toPay } })
+            await (prisma as any).deduction.deleteMany({ where: { payrollRecordId: existing.id } })
+            await (prisma as any).benefit.create({ data: { payrollRecordId: existing.id, type: "DECIMO_TERCERO", amount: xiiiAmount } })
             await (prisma as any).payrollRecord.update({
                 where: { id: existing.id },
-                data: { baseSalary: 0, netSalary: toPay, totalEarnings: toPay, totalDeductions: 0 }
+                data: { 
+                    baseSalary: 0, 
+                    netSalary: xiiiAmount, 
+                    totalEarnings: xiiiAmount, 
+                    totalDeductions: 0 
+                }
             })
         } else {
             await (prisma as any).payrollRecord.create({
                 data: {
-                    employeeId: employee.id, periodId,
-                    baseSalary: 0, daysWorked: 30,
+                    employeeId: employee.id, 
+                    periodId,
+                    baseSalary: 0, 
+                    daysWorked: 30,
                     overtime25h: 0, overtime50h: 0, overtime100h: 0,
                     overtime25Value: 0, overtime50Value: 0, overtime100Value: 0,
-                    netSalary: toPay, totalEarnings: toPay, totalDeductions: 0,
-                    benefits: { create: [{ type: "DECIMO_TERCERO", amount: toPay }] }
+                    netSalary: xiiiAmount, 
+                    totalEarnings: xiiiAmount, 
+                    totalDeductions: 0,
+                    benefits: { create: [{ type: "DECIMO_TERCERO", amount: xiiiAmount }] }
                 }
             })
         }
@@ -436,6 +461,213 @@ export async function generateDecimoCuartoPayroll(periodId: string) {
     })
 
     revalidatePath("/payroll")
+}
+
+/**
+ * Genera la nómina de XIV (Prima de Vacaciones).
+ * Períodos:
+ *   - Costa: Marzo (año anterior) a Febrero (año actual)
+ *   - Sierra: Septiembre (año anterior) a Agosto (año actual)
+ * Calcula en base a los días trabajados en nóminas mensuales.
+ * Si no existen nóminas, usa 30 días por defecto.
+ * El usuario puede editar los días trabajados para pagar el año completo (360 días).
+ */
+export async function generateXivPayroll(periodId: string) {
+    const session = await auth()
+    const companyId = (session?.user as any)?.companyId
+    if (!companyId) throw new Error("No company associated with user")
+
+    const period = await (prisma as any).payrollPeriod.findUnique({ where: { id: periodId } })
+    if (!period) throw new Error("Period not found")
+
+    const company = await (prisma as any).company.findUnique({ where: { id: companyId } })
+    const baseSalary = company?.baseSalary ?? ECUADOR_CONSTANTS.SBU_2025
+
+    const coverYear = period.year
+    const isSierra = period.type === 'DECIMO_CUARTO_SIERRA'
+
+    // Determine covered months based on region
+    let coveredMonthsPrevYear: number[]
+    let coveredMonthsCurrentYear: number[]
+
+    if (isSierra) {
+        // Sierra: Sep (prev) - Aug (current) → months 9-12 of prev + 1-8 of current
+        coveredMonthsPrevYear = [9, 10, 11, 12]  // Sep-Dec
+        coveredMonthsCurrentYear = [1, 2, 3, 4, 5, 6, 7, 8] // Jan-Aug
+    } else {
+        // Costa: Mar (prev) - Feb (current) → months 3-12 of prev + 1-2 of current
+        coveredMonthsPrevYear = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12] // Mar-Dec
+        coveredMonthsCurrentYear = [1, 2] // Jan-Feb
+    }
+
+    const coveredMonthlyPeriods = await (prisma as any).payrollPeriod.findMany({
+        where: {
+            companyId,
+            type: "MENSUAL",
+            status: { in: ["PROCESSED", "CLOSED"] },
+            OR: [
+                { year: coverYear - 1, month: { in: coveredMonthsPrevYear } },
+                { year: coverYear, month: { in: coveredMonthsCurrentYear } }
+            ]
+        },
+        select: { id: true, month: true, year: true }
+    })
+    const coveredPeriodIds = coveredMonthlyPeriods.map((p: any) => p.id)
+
+    const employees = await (prisma as any).employee.findMany({
+        where: { companyId, status: "ACTIVE" }
+    })
+
+    for (const employee of employees) {
+        let totalDaysWorked = 0
+        let hasPayrollRecords = false
+
+        if (coveredPeriodIds.length > 0) {
+            const payrollRecords = await (prisma as any).payrollRecord.findMany({
+                where: {
+                    employeeId: employee.id,
+                    periodId: { in: coveredPeriodIds }
+                },
+                select: { daysWorked: true }
+            })
+
+            if (payrollRecords.length > 0) {
+                hasPayrollRecords = true
+                totalDaysWorked = payrollRecords.reduce((sum: number, r: any) => sum + (r.daysWorked || 0), 0)
+            }
+        }
+
+        if (!hasPayrollRecords) {
+            totalDaysWorked = 30
+        }
+
+        const xivAmount = (baseSalary / 360) * totalDaysWorked
+
+        const existing = await (prisma as any).payrollRecord.findUnique({
+            where: { employeeId_periodId: { employeeId: employee.id, periodId } }
+        })
+
+        if (existing) {
+            await (prisma as any).benefit.deleteMany({ where: { payrollRecordId: existing.id, earningTypeId: null } })
+            await (prisma as any).deduction.deleteMany({ where: { payrollRecordId: existing.id } })
+            await (prisma as any).benefit.create({ data: { payrollRecordId: existing.id, type: "DECIMO_CUARTO", amount: xivAmount } })
+            await (prisma as any).payrollRecord.update({
+                where: { id: existing.id },
+                data: { 
+                    baseSalary: 0, 
+                    daysWorked: totalDaysWorked,
+                    netSalary: xivAmount, 
+                    totalEarnings: xivAmount, 
+                    totalDeductions: 0 
+                }
+            })
+        } else {
+            await (prisma as any).payrollRecord.create({
+                data: {
+                    employeeId: employee.id, 
+                    periodId,
+                    baseSalary: 0, 
+                    daysWorked: totalDaysWorked,
+                    overtime25h: 0, overtime50h: 0, overtime100h: 0,
+                    overtime25Value: 0, overtime50Value: 0, overtime100Value: 0,
+                    netSalary: xivAmount, 
+                    totalEarnings: xivAmount, 
+                    totalDeductions: 0,
+                    benefits: { create: [{ type: "DECIMO_CUARTO", amount: xivAmount }] }
+                }
+            })
+        }
+    }
+
+    await (prisma as any).payrollPeriod.update({ where: { id: periodId }, data: { status: "PROCESSED" } })
+
+    await (prisma as any).payrollAudit.create({
+        data: {
+            periodId,
+            action: "CALCULATED",
+            employeeCount: employees.length,
+            userId: session?.user?.id,
+            userEmail: session?.user?.email,
+            details: JSON.stringify({ type: period.type, year: period.year, month: period.month })
+        }
+    })
+
+    revalidatePath("/payroll")
+}
+
+export async function recalculateXivRecord(recordId: string) {
+    await checkPeriodStatus(recordId)
+    
+    const record = await (prisma as any).payrollRecord.findUnique({
+        where: { id: recordId },
+        include: { 
+            employee: true,
+            period: true 
+        }
+    })
+
+    if (!record) throw new Error("Record not found")
+
+    const company = await (prisma as any).company.findUnique({ where: { id: record.employee.companyId } })
+    const baseSalary = company?.baseSalary ?? ECUADOR_CONSTANTS.SBU_2025
+
+    const daysWorked = record.daysWorked || 30
+    const xivAmount = (baseSalary / 360) * daysWorked
+
+    await prisma.$transaction([
+        (prisma as any).payrollRecord.update({
+            where: { id: recordId },
+            data: { netSalary: xivAmount, totalEarnings: xivAmount, totalDeductions: 0 }
+        }),
+        (prisma as any).benefit.deleteMany({ 
+            where: { payrollRecordId: recordId, type: "DECIMO_CUARTO" } 
+        }),
+        (prisma as any).deduction.deleteMany({ 
+            where: { payrollRecordId: recordId } 
+        }),
+        (prisma as any).benefit.create({ 
+            data: { payrollRecordId: recordId, type: "DECIMO_CUARTO", amount: xivAmount } 
+        })
+    ])
+
+    revalidatePath("/payroll")
+}
+
+export async function updateXivDays(recordId: string, daysWorked: number) {
+    await checkPeriodStatus(recordId)
+    await (prisma as any).payrollRecord.update({
+        where: { id: recordId },
+        data: { daysWorked }
+    })
+
+    await recalculateXivRecord(recordId)
+    revalidatePath("/payroll")
+}
+
+export async function updateXiiiAmount(recordId: string, amount: number) {
+    await checkPeriodStatus(recordId)
+    
+    await prisma.$transaction([
+        (prisma as any).payrollRecord.update({
+            where: { id: recordId },
+            data: { netSalary: amount, totalEarnings: amount }
+        }),
+        (prisma as any).benefit.deleteMany({ 
+            where: { payrollRecordId: recordId, type: "DECIMO_TERCERO" } 
+        }),
+        (prisma as any).deduction.deleteMany({ 
+            where: { payrollRecordId: recordId } 
+        }),
+        (prisma as any).benefit.create({ 
+            data: { payrollRecordId: recordId, type: "DECIMO_TERCERO", amount: amount } 
+        })
+    ])
+
+    revalidatePath("/payroll")
+}
+
+export async function recalculateXiiiPayroll(periodId: string) {
+    await generateDecimoTerceroPayroll(periodId)
 }
 
 export async function recalculateAllRecords(periodId: string) {
